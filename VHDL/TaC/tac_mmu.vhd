@@ -69,7 +69,7 @@ end TAC_MMU;
 architecture Behavioral of TAC_MMU is
 -- 動作中を表すFF
 signal mapPage : std_logic;                             -- activate mapping
-signal memReq  : std_logic;                             -- memory request
+signal mmuStat : std_logic_vector(2 downto 0);          -- mmu status
 
 -- CPU出力のラッチ
 signal page    : std_logic_vector(7 downto 0);          -- page no
@@ -93,6 +93,9 @@ type TlbArray is array(0 to 7) of TlbField;             -- array of 24bit * 8
 signal TLB     : TlbArray;                              -- TLB
 signal entry   : std_logic_vector(11 downto 0);         -- target TLB entry
 signal index   : std_logic_vector(3 downto 0);          -- index of TLB entry
+signal tlbFull : std_logic;                             -- TLB full
+signal empIdx  : std_logic_vector(2 downto 0);          -- index of empty entry
+signal pageFlt : std_logic;                             -- detect page fault
 
 -- 例外
 signal tlbMiss : std_logic;                             -- TLB miss
@@ -104,10 +107,17 @@ signal enMmu   : std_logic;                             -- Enable MMU
 signal fltPage : std_logic_vector(7 downto 0);          -- Page happend fault
 signal fltRsn  : std_logic_vector(1 downto 0);          -- reason of fault
 signal fltAdr  : std_logic_vector(15 downto 0);         -- address of fault
+signal pageTbl : std_logic_vector(7 downro 0);          -- page table register
 
 begin
   -- 次のクロックでTLBの検索とメモリアクセスを行う
-  P_WAIT <= (not memReq) and P_MR;
+  P_WAIT <= '1' when (mmuStat="000" and P_MR) or
+                     (mmuStat="001" and tlbMiss='1') or
+                     (mmuStat="010") or
+                     (mmuStat="011") or
+                     (mmuStat="100") or
+                     (mmuStat="101" and pageFlt='0')
+                else '0';
 
   -- memReqは全てのメモリアクセス中
   -- mapPageはTLBを検索ありのメモリアクセス中
@@ -115,15 +125,46 @@ begin
   process(P_CLK, P_RESET)
   begin
     if (P_RESET='0') then
-      memReq <= '0';
+      pageFlt <= '0';
+    elsif (P_CLK'event and P_CLK='1') then
+      pageFlt <= P_DIN_MEM(15);  -- fetchしたentryのVビット
+    end if;
+  end process;
+
+  process(P_CLK, P_RESET)
+  begin
+    if (P_RESET='0') then
+      mmuStat <= "000";
       mapPage <= '0';
     elsif (P_CLK'event and P_CLK='1') then
-      if (P_MR='1' and memReq='0') then
-        memReq <= '1';
+      if (mmuStat="000" and P_MR='1') then
+        mmuStat <= "001";
         mapPage <= (not P_PR) and enMmu;
-      else
-        memReq <= '0';
-        mapPage <= '0';
+      elsif (mmuStat="001") then
+        if (tlbMiss='1') then
+          mmuStat <= "010";
+        else
+          mmuStat <= "000";
+        end if;
+      elsif (mmuStat="010") then
+        if (tlbFull='0') then
+          mmuStat <= "100";
+        else 
+          mmuStat <= "011";
+        end if;
+      elsif (mmuStat="011") then
+        mmuStat <= "100";
+        --pageTbl[pNum] <= TLB[rnd]
+      elsif (mmuStat="100") then
+        mmuStat <= "101";
+        -- TLB[aki] <= pNum & PageTable[pNum]
+      else -- if (mmuStat="101") then
+        if (pageFlt='1') then
+          mmuStat <= "000";
+        else then
+          mmuStat <= "001";
+          -- PageTable.R <= 0
+        end if;
       end if;
     end if;
   end process;
@@ -147,6 +188,30 @@ begin
   P_ADDR_MEM(7 downto 0) <= offs;
 
   -- TLB の検索
+  tlbFull <= TLB(0)(15) and TLB(1)(15) and TLB(2)(15) and TLB(3)(15) and 
+             TLB(4)(15) and TLB(5)(15) and TLB(6)(15) and TLB(7)(15);
+  
+  process(TLB)
+  begin
+    if (TLB(0)(15)='0') then
+      empIdx <= "000";
+    elsif (TLB(1)(15)='0') then
+      empIdx <= "001";
+    elsif (TLB(2)(15)='0') then
+      empIdx <= "010";
+    elsif (TLB(3)(15)='0') then
+      empIdx <= "011";
+    elsif (TLB(4)(15)='0') then
+      empIdx <= "100";
+    elsif (TLB(5)(15)='0') then
+      empIdx <= "101";
+    elsif (TLB(6)(15)='0') then
+      empIdx <= "110";
+    else
+      empIdx <= "111";
+    end if;
+  end process;
+
   process(page, TLB)
   begin
     if    (page & '1'=TLB(0)(23 downto 15)) then
