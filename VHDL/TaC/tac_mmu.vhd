@@ -119,27 +119,27 @@ begin
                      (mmuStat="101" and pageFlt='0')
                 else '0';
 
-  -- memReqは全てのメモリアクセス中
-  -- mapPageはTLBを検索ありのメモリアクセス中
-  -- (TLBの検索10ns+メモリアクセス10ns)
+  -- page_fault割り込み
   process(P_CLK, P_RESET)
   begin
     if (P_RESET='0') then
       pageFlt <= '0';
     elsif (P_CLK'event and P_CLK='1') then
-      pageFlt <= P_DIN_MEM(15);  -- fetchしたentryのVビット
+      if(mmuStat="100") then
+        pageFlt <= not P_DIN_MEM(15);  -- fetchしたentryのVビット
+      else
+        pageFlt <= '0';
+      end if;
     end if;
   end process;
 
-  process(P_CLK, P_RESET)
+  process(P_CLK, P_RESET)  --mmuStat関連の処理
   begin
     if (P_RESET='0') then
       mmuStat <= "000";
-      mapPage <= '0';
     elsif (P_CLK'event and P_CLK='1') then
       if (mmuStat="000" and P_MR='1') then
         mmuStat <= "001";
-        mapPage <= (not P_PR) and enMmu;
       elsif (mmuStat="001") then
         if (tlbMiss='1') then
           mmuStat <= "010";
@@ -165,6 +165,17 @@ begin
           mmuStat <= "001";
           -- PageTable.R <= 0
         end if;
+      end if;
+    end if;
+  end process;
+
+  process(P_CLK, P_RESET)  -- mapPage関連の処理
+  begin
+    if (P_RESET='0') then
+      mapPage <= '0';
+    elsif (P_CLK'event and P_CLK='1') then
+      if (mmuStat="000" and P_MR='1') then
+        mapPage <= (not P_PR) and enMmu;
       end if;
     end if;
   end process;
@@ -272,7 +283,35 @@ begin
   P_TLB_INT <= tlbMiss;                     -- 割り込みコントローラとCPUに接続
 
   --TLB操作
-  process(P_CLK,P_RESET)
+  process(P_CLK,P_RESET)  --I/Oレジスタの書き換え
+  begin
+    if (P_RESET='0') then
+      P_BANK_MEM <= '0';                                -- IPL ROM
+      enMmu <= '0';                                     -- MMU Enable
+    elsif (P_CLK'event and P_CLK='1') then
+      if(P_EN='1' and P_IOW='1') then                   -- IO[80h - A9h]
+        if(P_ADDR(5 downto 4)="10") then                --   Axh
+          if(P_ADDR(3 downto 1)="000") then             --    A0h or A1h
+            P_BANK_MEM <= P_DIN(0);
+          elsif(P_ADDR(3 downto 1)="001") then          --    A2h or A3h
+            enMmu <= P_DIN(0);
+          end if;
+        elsif(P_ADDR(1)='0') then                       --   8xh or 9xh (TLB)
+          TLB(conv_integer(P_ADDR(4 downto 2)))(23 downto 16)
+            <= P_DIN(7 downto 0);
+        else
+          TLB(conv_integer(P_ADDR(4 downto 2)))(15 downto 0)
+            <= P_DIN;
+        end if;
+      elsif(mapPage='1' and index(3)='0') then          -- TLB Hit
+        TLB(conv_integer(index(2 downto 0)))(11) <=     -- D bit
+          entry(11) or memWrt;
+        TLB(conv_integer(index(2 downto 0)))(12) <='1'; -- R bit
+      end if;
+    end if;
+  end process;
+
+  process(P_CLK,P_RESET)  --TLB操作
   begin
     if (P_RESET='0') then
       P_BANK_MEM <= '0';                                -- IPL ROM
