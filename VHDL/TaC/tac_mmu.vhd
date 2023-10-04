@@ -303,15 +303,7 @@ begin
   process(P_CLK,P_RESET)  --TLB操作
   begin
     if (P_CLK'event and P_CLK='1') then
-      if(P_EN='1' and P_IOW='1') then                   -- IO[80h - A9h]
-        if(P_ADDR(1)='0') then                       --   8xh or 9xh (TLB)
-          TLB(conv_integer(P_ADDR(4 downto 2)))(23 downto 16)
-            <= P_DIN(7 downto 0);
-        else
-          TLB(conv_integer(P_ADDR(4 downto 2)))(15 downto 0)
-            <= P_DIN;
-        end if;
-      elsif(mapPage='1' and index(3)='0') then          -- TLB Hit
+      if(mapPage='1' and index(3)='0') then          -- TLB Hit
         TLB(conv_integer(index(2 downto 0)))(11) <=     -- D bit
           entry(11) or memWrt;
         TLB(conv_integer(index(2 downto 0)))(12) <='1'; -- R bit
