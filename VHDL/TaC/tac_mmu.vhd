@@ -346,6 +346,7 @@ begin
         when (P_ADDR(5)='0') else                         -- 82h,86h,...,9Eh
       fltAdr when (P_ADDR(2)='0') else                    -- A2h 割込み原因Adr
       "00000000000000" & fltRsn when (P_ADDR(1)='0') else -- A4h 割込み原因
-      "00000000" & fltPage;                               -- A6h TLBmissページ
+      "00000000" & fltPage when (P_ADDR()='0') else       -- A6h TLBmissページ
+      "00000000" & pageTbl;                               -- A8h ページテーブルレジスタ
 
 end Behavioral;
