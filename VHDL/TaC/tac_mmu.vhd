@@ -141,7 +141,7 @@ begin
       if (mmuStat="000" and P_MR='1') then
         mmuStat <= "001";
       elsif (mmuStat="001") then
-        if (tlbMiss='1') then
+        if (tlbMiss='1' and badAdr='0') then
           mmuStat <= "010";
         else
           mmuStat <= "000";
@@ -270,7 +270,7 @@ begin
             ((    insFet) and (not (entry(10) and entry(8)))));  -- fetch
 
   -- 奇数アドレス例外(MMUが動作していない時も)
-  badAdr  <= memReq and offs(0) and (not bytAdr);
+  badAdr  <= mapPage and offs(0) and (not bytAdr);
 
   -- 例外が発生していなければメモリをアクセスする
   -- P_MR_MEM <= memReq and not (tlbMiss or badAdr or memVio);
