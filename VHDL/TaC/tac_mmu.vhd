@@ -96,6 +96,7 @@ signal index   : std_logic_vector(3 downto 0);          -- index of TLB entry
 signal tlbFull : std_logic;                             -- TLB full
 signal empIdx  : std_logic_vector(2 downto 0);          -- index of empty entry
 signal pageFlt : std_logic;                             -- detect page fault
+signal rndAdr  : std_logic_vector(2 downto 0);          -- random address of TLB
 
 -- 例外
 signal tlbMiss : std_logic;                             -- TLB miss
@@ -112,7 +113,7 @@ signal pageTbl : std_logic_vector(7 downto 0);          -- page table register
 begin
   -- 次のクロックでTLBの検索とメモリアクセスを行う
   P_WAIT <= '1' when (mmuStat="000" and P_MR='1') or
-                     (mmuStat="001" and tlbMiss='1') or
+                     (mmuStat="001" and tlbMiss='1' and badAdr='0') or
                      (mmuStat="010") or
                      (mmuStat="011") or
                      (mmuStat="100") or
@@ -193,12 +194,13 @@ begin
       insFet  <= P_LI;
       bytAdr  <= P_BT;
       P_DOUT_MEM <= P_DIN;
+      rndAdr  <= P_ADDR(3 downto 1);
     end if;
   end process;
 
   P_BT_MEM <= bytAdr;
   P_RW_MEM <= memWrt;
-  P_ADDR_MEM(7 downto 0) <= offs;
+  P_ADDR_MEM(7 downto 0) <= TLB(rndAdr)(23 downto 16) when (mmuStat="011") else offs;
 
   -- TLBの検索
   tlbFull <= TLB(0)(15) and TLB(1)(15) and TLB(2)(15) and TLB(3)(15) and 
@@ -258,7 +260,7 @@ begin
   end process;
 
   -- フレーム番号
-  P_ADDR_MEM(15 downto 8) <= entry(7 downto 0) when (mapPage='1') else page;
+  P_ADDR_MEM(15 downto 8) <= entry(7 downto 0) when (mmuStat="011") else page;
 
   -- TLB ミス例外(MMU動作時だけ)
   tlbMiss <= mapPage and index(3);
@@ -340,6 +342,19 @@ begin
       end if;
     end if;
   end process;
+
+  process(P_CLK)
+  begin
+    if(mmuStat="011") then
+      pageTbl(page) <= TLB(rndAdr)();
+    end if;
+    if(mmuStat="100") then
+      if(tlbFull='0') then
+        TLB(empIdx) <= page & pageTbl(page);
+      else
+        TLB() <= ;
+      end if;
+      
 
   -- CPU への出力
   P_DOUT <=
