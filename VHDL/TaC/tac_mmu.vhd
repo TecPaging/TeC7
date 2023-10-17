@@ -343,19 +343,6 @@ begin
     end if;
   end process;
 
-  process(P_CLK)
-  begin
-    if(mmuStat="011") then
-      pageTbl(page) <= TLB(rndAdr)();
-    end if;
-    if(mmuStat="100") then
-      if(tlbFull='0') then
-        TLB(empIdx) <= page & pageTbl(page);
-      else
-        TLB() <= ;
-      end if;
-      
-
   -- CPU への出力
   P_DOUT <=
       P_DIN_MEM when (P_IOR='0') else                     -- 通常はメモリ
