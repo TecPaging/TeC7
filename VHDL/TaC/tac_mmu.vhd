@@ -108,7 +108,7 @@ signal enMmu   : std_logic;                             -- Enable MMU
 signal fltPage : std_logic_vector(7 downto 0);          -- Page happend fault
 signal fltRsn  : std_logic_vector(1 downto 0);          -- reason of fault
 signal fltAdr  : std_logic_vector(15 downto 0);         -- address of fault
-signal pageTbl : std_logic_vector(7 downto 0);          -- page table register
+signal pageTbl : std_logic_vector(15 downto 0);         -- page table register
 
 begin
   -- 次のクロックでTLBの検索とメモリアクセスを行う
@@ -191,6 +191,9 @@ begin
       page    <= P_ADDR(15 downto 8);
       offs    <= P_ADDR(7  downto 0);
       memWrt  <= P_RW;
+      -- if(mmuStat="011") then memWrt <= '1';
+      -- elsif(mmuStat="100") then memWrt <= '0';
+      -- end if;
       insFet  <= P_LI;
       bytAdr  <= P_BT;
       P_DOUT_MEM <= P_DIN;
@@ -200,7 +203,7 @@ begin
 
   P_BT_MEM <= bytAdr;
   P_RW_MEM <= memWrt;
-  P_ADDR_MEM(7 downto 0) <= TLB(rndAdr)(23 downto 16) when (mmuStat="011") else offs;
+  P_ADDR_MEM <= TLB(rndAdr)(23 downto 16) & TLB(rndAdr)(7 downto 0) when (mmuStat="011") else page & offs;
 
   -- TLBの検索
   tlbFull <= TLB(0)(15) and TLB(1)(15) and TLB(2)(15) and TLB(3)(15) and 
@@ -259,9 +262,6 @@ begin
     end if;
   end process;
 
-  -- フレーム番号
-  P_ADDR_MEM(15 downto 8) <= entry(7 downto 0) when (mmuStat="011") else page;
-
   -- TLB ミス例外(MMU動作時だけ)
   tlbMiss <= mapPage and index(3);
 
@@ -314,6 +314,9 @@ begin
           entry(11) or memWrt;
         TLB(conv_integer(index(2 downto 0)))(12) <='1'; -- R bit
       end if;
+      if(mmuStat="011") then
+        pageTbl <= TLB(rndAdr);
+      end if;
     end if;
   end process;
 
@@ -353,5 +356,6 @@ begin
       fltAdr when (P_ADDR(2)='0') else                    -- A2h 割込み原因Adr
       "00000000000000" & fltRsn when (P_ADDR(1)='0') else -- A4h 割込み原因
       "00000000" & fltPage;                               -- A6h TLBmissページ
+
 
 end Behavioral;
