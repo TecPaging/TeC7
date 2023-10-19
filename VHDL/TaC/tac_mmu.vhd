@@ -45,7 +45,7 @@ entity TAC_MMU is
          P_PR       : in  std_logic;                     -- Privilege mode
          P_WAIT     : out std_logic;                     -- Wait Request
          P_VIO_INT  : out std_logic;                     -- MemVio/BadAdr excp.
-         P_TLB_INT  : out std_logic;                     -- TLB miss exception
+         P_PAG_INT  : out std_logic;                     -- Page Faule excp.
 
          -- from cpu
          P_ADDR     : in  std_logic_vector(15 downto 0); -- Virtual address
@@ -108,7 +108,7 @@ signal enMmu   : std_logic;                             -- Enable MMU
 signal fltPage : std_logic_vector(7 downto 0);          -- Page happend fault
 signal fltRsn  : std_logic_vector(1 downto 0);          -- reason of fault
 signal fltAdr  : std_logic_vector(15 downto 0);         -- address of fault
-signal pageTbl : std_logic_vector(15 downto 0);         -- page table register
+signal pageTbl : std_logic_vector(7 downto 0);         -- page table register
 
 begin
   -- 次のクロックでTLBの検索とメモリアクセスを行う
@@ -155,16 +155,13 @@ begin
         end if;
       elsif (mmuStat="011") then
         mmuStat <= "100";
-        --pageTbl[pNum] <= TLB[rnd]
       elsif (mmuStat="100") then
         mmuStat <= "101";
-        -- TLB[aki] <= pNum & PageTable[pNum]
       else -- if (mmuStat="101") then
         if (pageFlt='1') then
           mmuStat <= "000";
         else
           mmuStat <= "001";
-          -- PageTable.R <= 0
         end if;
       end if;
     end if;
@@ -175,7 +172,7 @@ begin
     if (P_RESET='0') then
       mapPage <= '0';
     elsif (P_CLK'event and P_CLK='1') then
-      if (mmuStat="000" and P_MR='1') then
+      if ((mmuStat="000" and P_MR='1') or (mmuStat="101" and pageFlt='0')) then
         mapPage <= (not P_PR) and enMmu;
       else
         mapPage <= '0';
@@ -191,9 +188,6 @@ begin
       page    <= P_ADDR(15 downto 8);
       offs    <= P_ADDR(7  downto 0);
       memWrt  <= P_RW;
-      -- if(mmuStat="011") then memWrt <= '1';
-      -- elsif(mmuStat="100") then memWrt <= '0';
-      -- end if;
       insFet  <= P_LI;
       bytAdr  <= P_BT;
       P_DOUT_MEM <= P_DIN;
@@ -201,9 +195,16 @@ begin
     end if;
   end process;
 
-  P_BT_MEM <= bytAdr;
-  P_RW_MEM <= memWrt;
-  P_ADDR_MEM <= TLB(rndAdr)(23 downto 16) & TLB(rndAdr)(7 downto 0) when (mmuStat="011") else page & offs;
+  P_BT_MEM <= bytAdr when mmuStat="001" else '0';
+  P_RW_MEM <= memWrt when mmuStat="001" else
+              '1'    when mmuStat="011" else '0';'1' when mmuStat="011" else '0';
+  P_ADDR_MEM <= swapOutAdr when mmuStat="011" else
+                swapInAdr  when mmuStat="100" else targetAdr;
+
+  swapOutAdr <= (pageTbl & "00000000") + ((TLB(conv_integer(rndAdr)))(23 downto 16) & '0');
+  swapInAdr  <= (pageTbl & "00000000") + (page & '0');
+  targetFrm  <= entry(7 downto 0) when (mapPage='1') else page;
+  targetAdr  <= targetFrm & offs;
 
   -- TLBの検索
   tlbFull <= TLB(0)(15) and TLB(1)(15) and TLB(2)(15) and TLB(3)(15) and 
@@ -293,16 +294,16 @@ begin
       P_BANK_MEM <= '0';                                -- IPL ROM
       enMmu <= '0';                                     -- MMU Enable
     elsif (P_CLK'event and P_CLK='1') then
-      if(P_EN='1' and P_IOW='1') then                   -- IO[80h - A9h]
-        if(P_ADDR(5 downto 4)="10") then                --   Axh
-          if(P_ADDR(3 downto 1)="000") then             --    A0h or A1h
-            P_BANK_MEM <= P_DIN(0);
-          elsif(P_ADDR(3 downto 1)="001") then          --    A2h or A3h
-            enMmu <= P_DIN(0);
-          end if;
+      if(P_EN='1' and P_IOW='1') then                   -- IO[A0h - A9h]
+        if(P_ADDR(3 downto 1)="000") then             --    A0h or A1h
+          P_BANK_MEM <= P_DIN(0);
+        elsif(P_ADDR(3 downto 1)="001") then          --    A2h or A3h
+          enMmu <= P_DIN(0);
+        elsif(P_ADDR(3 downto 1)="100") then          --    A8h or A9h
+          pageTbl <= P_DIN;
         end if;
-		  end if;
-    end if;
+      end if;
+	  end if;
   end process;
 
   --TLB操作
@@ -314,17 +315,17 @@ begin
           entry(11) or memWrt;
         TLB(conv_integer(index(2 downto 0)))(12) <='1'; -- R bit
       end if;
-      if(mmuStat="011") then
-        pageTbl <= TLB(rndAdr);
+      if(mmuStat="100") then
+        TLB(conv_intenger(empIdx)) <= page & P_DIN_MEM;
       end if;
     end if;
   end process;
 
-  --TLB miss 発生ページ
+  --Page Fault 発生ページ
   process(P_CLK)
   begin
     if(P_CLK'event and P_CLK='1') then
-      if(tlbMiss='1') then                              -- TLB miss なら
+      if(pageFlt='1') then                              -- Page Fault なら
         fltPage <= page;                                --   原因ページを記憶
       end if;
     end if;
