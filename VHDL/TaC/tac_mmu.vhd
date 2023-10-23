@@ -108,7 +108,12 @@ signal enMmu   : std_logic;                             -- Enable MMU
 signal fltPage : std_logic_vector(7 downto 0);          -- Page happend fault
 signal fltRsn  : std_logic_vector(1 downto 0);          -- reason of fault
 signal fltAdr  : std_logic_vector(15 downto 0);         -- address of fault
-signal pageTbl : std_logic_vector(7 downto 0);         -- page table register
+signal pageTbl : std_logic_vector(7 downto 0);          -- page table register
+
+signal swapOutAdr : std_logic_vector(15 downto 0);      -- address to memory
+signal swapInAdr  : std_logic_vector(15 downto 0);      -- 
+signal targetFrm  : std_logic_vector(7 downto 0);       -- 
+signal targetAdr  : std_logic_vector(15 downto 0);      -- 
 
 begin
   -- 次のクロックでTLBの検索とメモリアクセスを行う
@@ -197,7 +202,7 @@ begin
 
   P_BT_MEM <= bytAdr when mmuStat="001" else '0';
   P_RW_MEM <= memWrt when mmuStat="001" else
-              '1'    when mmuStat="011" else '0';'1' when mmuStat="011" else '0';
+              '1'    when mmuStat="011" else '0';
   P_ADDR_MEM <= swapOutAdr when mmuStat="011" else
                 swapInAdr  when mmuStat="100" else targetAdr;
 
@@ -294,13 +299,13 @@ begin
       P_BANK_MEM <= '0';                                -- IPL ROM
       enMmu <= '0';                                     -- MMU Enable
     elsif (P_CLK'event and P_CLK='1') then
-      if(P_EN='1' and P_IOW='1') then                   -- IO[A0h - A9h]
+      if(P_EN='1' and P_IOW='1') then                   -- IO[A0h - A7h]
         if(P_ADDR(3 downto 1)="000") then             --    A0h or A1h
           P_BANK_MEM <= P_DIN(0);
         elsif(P_ADDR(3 downto 1)="001") then          --    A2h or A3h
           enMmu <= P_DIN(0);
-        elsif(P_ADDR(3 downto 1)="100") then          --    A8h or A9h
-          pageTbl <= P_DIN;
+        elsif(P_ADDR(2 downto 1)="11") then          --    A6h or A7h
+          pageTbl <= P_DIN(7 downto 0);
         end if;
       end if;
 	  end if;
