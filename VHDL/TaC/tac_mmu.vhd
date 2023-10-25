@@ -110,8 +110,8 @@ signal fltRsn  : std_logic_vector(1 downto 0);          -- reason of fault
 signal fltAdr  : std_logic_vector(15 downto 0);         -- address of fault
 signal pageTbl : std_logic_vector(7 downto 0);          -- page table register
 
-signal swapOutAdr : std_logic_vector(15 downto 0);      -- address to memory
-signal swapInAdr  : std_logic_vector(15 downto 0);      -- 
+signal swapOutAdr : std_logic_vector(15 downto 1);      -- address to memory
+signal swapInAdr  : std_logic_vector(15 downto 1);      -- 
 signal targetFrm  : std_logic_vector(7 downto 0);       -- 
 signal targetAdr  : std_logic_vector(15 downto 0);      -- 
 
@@ -203,11 +203,19 @@ begin
   P_BT_MEM <= bytAdr when mmuStat="001" else '0';
   P_RW_MEM <= memWrt when mmuStat="001" else
               '1'    when mmuStat="011" else '0';
-  P_ADDR_MEM <= swapOutAdr when mmuStat="011" else
-                swapInAdr  when mmuStat="100" else targetAdr;
+  -- 例外が発生していなければメモリをアクセスする
+  -- P_MR_MEM <= '1' when (mmuStat="001" and tlbMiss='0' and badAdr='0' and memVio='0') else
+  --             '1' when (mmuStat="011" or mmuStat="100") else '0';
+  --   タイミングが厳しい場合は
+  --     アドレス違反やメモリ保護違反でメモリを破壊しても
+  --     プロセスを打ち切ればよいので妥協することにする．
+  P_MR_MEM <= '1' when (mmuStat="001" and tlbMiss='0') else
+              '1' when (mmuStat="011" or mmuStat="100") else '0';
+  P_ADDR_MEM <= (swapOutAdr & '0') when mmuStat="011" else
+                (swapInAdr  & '0') when mmuStat="100" else targetAdr;
 
-  swapOutAdr <= (pageTbl & "00000000") + ((TLB(conv_integer(rndAdr)))(23 downto 16) & '0');
-  swapInAdr  <= (pageTbl & "00000000") + (page & '0');
+  swapOutAdr <= (pageTbl & "0000000") + (TLB(conv_integer(rndAdr)))(23 downto 16);
+  swapInAdr  <= (pageTbl & "0000000") + page;
   targetFrm  <= entry(7 downto 0) when (mapPage='1') else page;
   targetAdr  <= targetFrm & offs;
 
@@ -280,17 +288,9 @@ begin
   -- 奇数アドレス例外(MMUが動作していない時も)
   badAdr  <= mapPage and offs(0) and (not bytAdr);
 
-  -- 例外が発生していなければメモリをアクセスする
-  -- P_MR_MEM <= memReq and not (tlbMiss or badAdr or memVio);
-
-  --   タイミングが厳しい場合は
-  --     アドレス違反やメモリ保護違反でメモリを破壊しても
-  --     プロセスを打ち切ればよいので妥協することにする．
-  P_MR_MEM <= not tlbMiss when (mmuStat="001");
-
   -- メモリ関係の例外をCPUに知らせる
   P_VIO_INT <= badAdr or memVio;            -- 割り込みコントローラだけに接続
-  P_TLB_INT <= tlbMiss;                     -- 割り込みコントローラとCPUに接続
+  P_PAG_INT <= pageFlt;                     -- 割り込みコントローラとCPUに接続
 
   --I/Oレジスタの書き換え
   process(P_CLK,P_RESET)
@@ -300,11 +300,11 @@ begin
       enMmu <= '0';                                     -- MMU Enable
     elsif (P_CLK'event and P_CLK='1') then
       if(P_EN='1' and P_IOW='1') then                   -- IO[A0h - A7h]
-        if(P_ADDR(3 downto 1)="000") then             --    A0h or A1h
+        if(P_ADDR(3 downto 1)="000") then               --    A0h or A1h
           P_BANK_MEM <= P_DIN(0);
-        elsif(P_ADDR(3 downto 1)="001") then          --    A2h or A3h
+        elsif(P_ADDR(3 downto 1)="001") then            --    A2h or A3h
           enMmu <= P_DIN(0);
-        elsif(P_ADDR(2 downto 1)="11") then          --    A6h or A7h
+        elsif(P_ADDR(2 downto 1)="11") then             --    A6h or A7h
           pageTbl <= P_DIN(7 downto 0);
         end if;
       end if;
@@ -319,8 +319,7 @@ begin
         TLB(conv_integer(index(2 downto 0)))(11) <=     -- D bit
           entry(11) or memWrt;
         TLB(conv_integer(index(2 downto 0)))(12) <='1'; -- R bit
-      end if;
-      if(mmuStat="100") then
+      elsif(mmuStat="100") then
         TLB(conv_intenger(empIdx)) <= page & P_DIN_MEM;
       end if;
     end if;
