@@ -214,7 +214,7 @@ begin
   P_ADDR_MEM <= (swapOutAdr & '0') when mmuStat="011" else
                 (swapInAdr  & '0') when mmuStat="100" else targetAdr;
 
-  swapOutAdr <= (pageTbl & "0000000") + (TLB(conv_integer(rndAdr)))(23 downto 16);
+  swapOutAdr <= (pageTbl & "0000000") + TLB(conv_integer(rndAdr))(23 downto 16);
   swapInAdr  <= (pageTbl & "0000000") + page;
   targetFrm  <= entry(7 downto 0) when (mapPage='1') else page;
   targetAdr  <= targetFrm & offs;
@@ -300,9 +300,9 @@ begin
       enMmu <= '0';                                     -- MMU Enable
     elsif (P_CLK'event and P_CLK='1') then
       if(P_EN='1' and P_IOW='1') then                   -- IO[A0h - A7h]
-        if(P_ADDR(3 downto 1)="000") then               --    A0h or A1h
+        if(P_ADDR(2 downto 1)="00") then               --    A0h or A1h
           P_BANK_MEM <= P_DIN(0);
-        elsif(P_ADDR(3 downto 1)="001") then            --    A2h or A3h
+        elsif(P_ADDR(2 downto 1)="01") then            --    A2h or A3h
           enMmu <= P_DIN(0);
         elsif(P_ADDR(2 downto 1)="11") then             --    A6h or A7h
           pageTbl <= P_DIN(7 downto 0);
@@ -320,7 +320,7 @@ begin
           entry(11) or memWrt;
         TLB(conv_integer(index(2 downto 0)))(12) <='1'; -- R bit
       elsif(mmuStat="100") then
-        TLB(conv_intenger(empIdx)) <= page & P_DIN_MEM;
+        TLB(conv_integer(empIdx)) <= page & P_DIN_MEM;
       end if;
     end if;
   end process;
