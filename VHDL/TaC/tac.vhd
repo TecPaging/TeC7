@@ -452,7 +452,7 @@ component TAC_MMU is
          P_PR       : in  std_logic;                     -- Privilege mode
          P_WAIT     : out std_logic;                     -- Wait Request
          P_VIO_INT  : out std_logic;                     -- MemVio/BadAdr inter
-         P_TLB_INT  : out std_logic;                     -- TLB miss inter
+         P_PAG_INT  : out std_logic;                     -- TLB miss inter
 
          -- from cpu
          P_ADDR     : in  std_logic_vector(15 downto 0); -- Virtual address
@@ -655,7 +655,7 @@ begin
          P_PR          => i_pr,
          P_WAIT        => i_wait,
          P_VIO_INT     => i_int_bit(11),
-         P_TLB_INT     => i_int_bit(10),
+         P_PAG_INT     => i_int_bit(10),
 
          P_ADDR        => i_addr,
          P_MR          => i_mr,

@@ -244,37 +244,32 @@ begin
     end if;
   end process;
 
-  process(page, TLB)
+  process(P_CLK, P_RESET)
   begin
-    if    (page & '1'=TLB(0)(23 downto 15)) then
+    if (P_CLK'event and P_CLK='1') then
+    if    (P_ADDR(15 downto 8) & '1'=TLB(0)(23 downto 15)) then
       index <= X"0";
-      entry <= TLB(0)(11 downto 0);
-    elsif (page & '1'=TLB(1)(23 downto 15)) then
+    elsif (P_ADDR(15 downto 8) & '1'=TLB(1)(23 downto 15)) then
       index <= X"1";
-      entry <= TLB(1)(11 downto 0);
-    elsif (page & '1'=TLB(2)(23 downto 15)) then
+    elsif (P_ADDR(15 downto 8) & '1'=TLB(2)(23 downto 15)) then
       index <= X"2";
-      entry <= TLB(2)(11 downto 0);
-    elsif (page & '1'=TLB(3)(23 downto 15)) then
+    elsif (P_ADDR(15 downto 8) & '1'=TLB(3)(23 downto 15)) then
       index <= X"3";
-      entry <= TLB(3)(11 downto 0);
-    elsif (page & '1'=TLB(4)(23 downto 15)) then
+    elsif (P_ADDR(15 downto 8) & '1'=TLB(4)(23 downto 15)) then
       index <= X"4";
-      entry <= TLB(4)(11 downto 0);
-    elsif (page & '1'=TLB(5)(23 downto 15)) then
+    elsif (P_ADDR(15 downto 8) & '1'=TLB(5)(23 downto 15)) then
       index <= X"5";
-      entry <= TLB(5)(11 downto 0);
-    elsif (page & '1'=TLB(6)(23 downto 15)) then
+    elsif (P_ADDR(15 downto 8) & '1'=TLB(6)(23 downto 15)) then
       index <= X"6";
-      entry <= TLB(6)(11 downto 0);
-    elsif (page & '1'=TLB(7)(23 downto 15)) then
+    elsif (P_ADDR(15 downto 8) & '1'=TLB(7)(23 downto 15)) then
       index <= X"7";
-      entry <= TLB(7)(11 downto 0);
     else
       index <= "1XXX";
-      entry <= (others => 'X');
+    end if;
     end if;
   end process;
+
+  entry <= TLB(conv_integer(index(2 downto 0)))(11 downto 0);
 
   -- TLB ミス例外(MMU動作時だけ)
   tlbMiss <= mapPage and index(3);
