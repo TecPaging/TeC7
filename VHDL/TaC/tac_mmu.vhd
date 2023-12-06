@@ -132,8 +132,10 @@ begin
     if (P_RESET='0') then
       mmuStat <= "000";
     elsif (P_CLK'event and P_CLK='1') then
-      if (mmuStat="000" and P_MR='1') then
-        mmuStat <= "001";
+      if (mmuStat="000") then
+        if (P_MR='1') then
+          mmuStat <= "001";
+        end if;
       elsif (mmuStat="001") then
         if (tlbMiss='1' and badAdr='0') then
           mmuStat <= "010";
