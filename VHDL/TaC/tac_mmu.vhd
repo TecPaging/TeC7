@@ -2,7 +2,7 @@
 -- TeC7 VHDL Source Code
 --    Tokuyama kousen Educational Computer Ver.7
 --
--- Copyright (C) 2011-2022 by
+-- Copyright (C) 2011-2023 by
 --                      Dept. of Computer Science and Electronic Engineering,
 --                      Tokuyama College of Technology, JAPAN
 --
@@ -93,6 +93,7 @@ type TlbArray is array(0 to 7) of TlbField;             -- array of 24bit * 8
 signal TLB     : TlbArray;                              -- TLB
 signal entry   : std_logic_vector(11 downto 0);         -- target TLB entry
 signal index   : std_logic_vector(3 downto 0);          -- index of TLB entry
+signal tmpIdx  : std_logic_vector(3 downto 0);          -- Cndidate for index
 signal tlbFull : std_logic;                             -- TLB full
 signal empIdx  : std_logic_vector(2 downto 0);          -- index of empty entry
 signal pageFlt : std_logic;                             -- detect page fault
@@ -116,7 +117,7 @@ signal targetFrm  : std_logic_vector(7 downto 0);       --
 signal targetAdr  : std_logic_vector(15 downto 0);      -- 
 
 begin
-  -- 次のクロックでTLBの検索とメモリアクセスを行う
+  -- MMUが動作中なので次のクロックではCPUは状態を変化させない
   P_WAIT <= '1' when (mmuStat="000" and P_MR='1') or
                      (mmuStat="001" and tlbMiss='1' and badAdr='0') or
                      (mmuStat="010") or
@@ -125,21 +126,8 @@ begin
                      (mmuStat="101" and pageFlt='0')
                 else '0';
 
-  -- page_fault割り込み
+  -- mmuStatの制御(MMUの状態)
   process(P_CLK, P_RESET)
-  begin
-    if (P_RESET='0') then
-      pageFlt <= '0';
-    elsif (P_CLK'event and P_CLK='1') then
-      if(mmuStat="100") then
-        pageFlt <= not P_DIN_MEM(15);  -- fetchしたentryのVビット
-      else
-        pageFlt <= '0';
-      end if;
-    end if;
-  end process;
-
-  process(P_CLK, P_RESET)  --mmuStat関連の処理
   begin
     if (P_RESET='0') then
       mmuStat <= "000";
@@ -172,12 +160,15 @@ begin
     end if;
   end process;
 
-  process(P_CLK, P_RESET)  -- mapPage関連の処理
+  -- mapPage関連の処理(p->f変換が必要な時(mmuStat="001"の時)1になる)
+  process(P_CLK, P_RESET)
   begin
     if (P_RESET='0') then
       mapPage <= '0';
     elsif (P_CLK'event and P_CLK='1') then
-      if ((mmuStat="000" and P_MR='1') or (mmuStat="101" and pageFlt='0')) then
+      -- 次のクロックでmmuStat="001"になる
+      if ((mmuStat="000" and P_MR='1') or
+          (mmuStat="101" and pageFlt='0')) then
         mapPage <= (not P_PR) and enMmu;
       else
         mapPage <= '0';
@@ -186,7 +177,7 @@ begin
   end process;
 
   -- メモリアクセス関係の信号線はMMUの入り口でラッチする
-  -- (CPU内のディレイに関係なくTLBが動作できるように)
+  -- (CPU内のディレイに関係なくメモリが動作できるように)
   process(P_CLK)
   begin
     if (P_CLK'event and P_CLK='1') then
@@ -200,143 +191,98 @@ begin
     end if;
   end process;
 
-  P_BT_MEM <= bytAdr when mmuStat="001" else '0';
-  P_RW_MEM <= memWrt when mmuStat="001" else
-              '1'    when mmuStat="011" else '0';
-  -- 例外が発生していなければメモリをアクセスする
-  -- P_MR_MEM <= '1' when (mmuStat="001" and tlbMiss='0' and badAdr='0' and memVio='0') else
-  --             '1' when (mmuStat="011" or mmuStat="100") else '0';
-  --   タイミングが厳しい場合は
-  --     アドレス違反やメモリ保護違反でメモリを破壊しても
-  --     プロセスを打ち切ればよいので妥協することにする．
-  P_MR_MEM <= '1' when (mmuStat="001" and tlbMiss='0') else
-              '1' when (mmuStat="011" or mmuStat="100") else '0';
-  P_ADDR_MEM <= (swapOutAdr & '0') when mmuStat="011" else
-                (swapInAdr  & '0') when mmuStat="100" else targetAdr;
-
-  swapOutAdr <= (pageTbl & "0000000") + TLB(conv_integer(rndAdr))(23 downto 16);
-  swapInAdr  <= (pageTbl & "0000000") + page;
-  targetFrm  <= entry(7 downto 0) when (mapPage='1') else page;
-  targetAdr  <= targetFrm & offs;
-
-  -- TLBの検索
+  -- TLBのエントリが全て使用中
   tlbFull <= TLB(0)(15) and TLB(1)(15) and TLB(2)(15) and TLB(3)(15) and 
              TLB(4)(15) and TLB(5)(15) and TLB(6)(15) and TLB(7)(15);
-  
-  process(TLB)
-  begin
-    if (TLB(0)(15)='0') then
-      empIdx <= "000";
-    elsif (TLB(1)(15)='0') then
-      empIdx <= "001";
-    elsif (TLB(2)(15)='0') then
-      empIdx <= "010";
-    elsif (TLB(3)(15)='0') then
-      empIdx <= "011";
-    elsif (TLB(4)(15)='0') then
-      empIdx <= "100";
-    elsif (TLB(5)(15)='0') then
-      empIdx <= "101";
-    elsif (TLB(6)(15)='0') then
-      empIdx <= "110";
-    else
-      empIdx <= "111";
-    end if;
-  end process;
 
+  -- TLBの空きエントリのインデクス
+  empIdx <= "000" when (TLB(0)(15)='0' else
+            "001" when (TLB(1)(15)='0' else
+            "010" when (TLB(2)(15)='0' else
+            "011" when (TLB(3)(15)='0' else
+            "100" when (TLB(4)(15)='0' else
+            "101" when (TLB(5)(15)='0' else
+            "110" when (TLB(6)(15)='0' else
+            "111";
+
+  -- TLBの検索
+  tmpIdx <= "0000" when (P_ADDR(15 downto 8)&'1' = TLB(0)(23 downto 15)) else
+            "0001" when (P_ADDR(15 downto 8)&'1' = TLB(1)(23 downto 15)) else
+            "0010" when (P_ADDR(15 downto 8)&'1' = TLB(2)(23 downto 15)) else
+            "0011" when (P_ADDR(15 downto 8)&'1' = TLB(3)(23 downto 15)) else
+            "0100" when (P_ADDR(15 downto 8)&'1' = TLB(4)(23 downto 15)) else
+            "0101" when (P_ADDR(15 downto 8)&'1' = TLB(5)(23 downto 15)) else
+            "0110" when (P_ADDR(15 downto 8)&'1' = TLB(6)(23 downto 15)) else
+            "0111" when (P_ADDR(15 downto 8)&'1' = TLB(7)(23 downto 15)) else
+            "1000";
+
+  -- TLBの検索結果を記憶(ここまでをmmuStat="000"の間に行う)
   process(P_CLK, P_RESET)
   begin
     if (P_CLK'event and P_CLK='1') then
-    if    (P_ADDR(15 downto 8) & '1'=TLB(0)(23 downto 15)) then
-      index <= X"0";
-    elsif (P_ADDR(15 downto 8) & '1'=TLB(1)(23 downto 15)) then
-      index <= X"1";
-    elsif (P_ADDR(15 downto 8) & '1'=TLB(2)(23 downto 15)) then
-      index <= X"2";
-    elsif (P_ADDR(15 downto 8) & '1'=TLB(3)(23 downto 15)) then
-      index <= X"3";
-    elsif (P_ADDR(15 downto 8) & '1'=TLB(4)(23 downto 15)) then
-      index <= X"4";
-    elsif (P_ADDR(15 downto 8) & '1'=TLB(5)(23 downto 15)) then
-      index <= X"5";
-    elsif (P_ADDR(15 downto 8) & '1'=TLB(6)(23 downto 15)) then
-      index <= X"6";
-    elsif (P_ADDR(15 downto 8) & '1'=TLB(7)(23 downto 15)) then
-      index <= X"7";
-    else
-      index <= "1XXX";
-    end if;
+      index <= tmpIdx;
     end if;
   end process;
 
+  -- TLBの検索結果を出力(mmuStat="001"の時に使用する)
   entry <= TLB(conv_integer(index(2 downto 0)))(11 downto 0);
 
-  -- TLB ミス例外(MMU動作時だけ)
+  -- TLB ミスの判定
   tlbMiss <= mapPage and index(3);
 
-  -- メモリ保護例外(MMU動作時だけ)
-  memVio  <= mapPage and (not index(3)) and                      -- TLB hit
-           (((not memWrt) and (not entry(10))) or                -- read
-            ((    memWrt) and (not entry( 9))) or                -- write
-            ((    insFet) and (not (entry(10) and entry(8)))));  -- fetch
-
-  -- 奇数アドレス例外(MMUが動作していない時も)
-  badAdr  <= mapPage and offs(0) and (not bytAdr);
-
-  -- メモリ関係の例外をCPUに知らせる
-  P_VIO_INT <= badAdr or memVio;            -- 割り込みコントローラだけに接続
-  P_PAG_INT <= pageFlt;                     -- 割り込みコントローラとCPUに接続
-
-  --I/Oレジスタの書き換え
-  process(P_CLK,P_RESET)
-  begin
-    if (P_RESET='0') then
-      P_BANK_MEM <= '0';                                -- IPL ROM
-      enMmu <= '0';                                     -- MMU Enable
-    elsif (P_CLK'event and P_CLK='1') then
-      if(P_EN='1' and P_IOW='1') then                   -- IO[A0h - A7h]
-        if(P_ADDR(2 downto 1)="00") then               --    A0h or A1h
-          P_BANK_MEM <= P_DIN(0);
-        elsif(P_ADDR(2 downto 1)="01") then            --    A2h or A3h
-          enMmu <= P_DIN(0);
-        elsif(P_ADDR(2 downto 1)="11") then             --    A6h or A7h
-          pageTbl <= P_DIN(7 downto 0);
-        end if;
-      end if;
-	  end if;
-  end process;
-
-  --TLB操作
+  -- TLB の自動的な更新
   process(P_CLK)
   begin
     if (P_CLK'event and P_CLK='1') then
-      if(mapPage='1' and index(3)='0') then          -- TLB Hit
-        TLB(conv_integer(index(2 downto 0)))(11) <=     -- D bit
+      if(mapPage='1' and index(3)='0') then             -- TLB Hit
+        TLB(conv_integer(index(2 downto 0)))(11) <=       -- D bit
           entry(11) or memWrt;
-        TLB(conv_integer(index(2 downto 0)))(12) <='1'; -- R bit
-      elsif(mmuStat="100") then
+        TLB(conv_integer(index(2 downto 0)))(12) <='1';   -- R bit
+      elsif(mmuStat="100") then                         -- エントリのswap-in
         TLB(conv_integer(empIdx)) <= page & P_DIN_MEM;
       end if;
     end if;
   end process;
 
-  --Page Fault 発生ページ
-  process(P_CLK)
-  begin
-    if(P_CLK'event and P_CLK='1') then
-      if(pageFlt='1') then                              -- Page Fault なら
-        fltPage <= page;                                --   原因ページを記憶
-      end if;
-    end if;
-  end process;
+  -- メモリへの出力
+  swapOutAdr <= (pageTbl&"0000000") + TLB(conv_integer(rndAdr))(23 downto 16);
+  swapInAdr  <= (pageTbl&"0000000") + page;
+  targetFrm  <= entry(7 downto 0) when (mapPage='1') else page;
+  targetAdr  <= targetFrm & offs;
+  P_ADDR_MEM <= (swapOutAdr & '0') when mmuStat="011" else
+                (swapInAdr  & '0') when mmuStat="100" else targetAdr;
 
-  --メモリ保護違反の原因レジスタ
+  P_BT_MEM <= bytAdr when mmuStat="001" else '0';
+  P_RW_MEM <= memWrt when mmuStat="001" else
+              '1'    when mmuStat="011" else '0';
+
+  -- 例外が発生していなければメモリをアクセスする
+  -- P_MR_MEM <= '1'
+  --   when (mmuStat="001" and tlbMiss='0' and badAdr='0' and memVio='0') else
+  --   1' when (mmuStat="011" or mmuStat="100") else '0';
+  --   タイミングが厳しい場合は
+  --     アドレス違反やメモリ保護違反でメモリを破壊しても
+  --     プロセスを打ち切ればよいので妥協することにする．
+  P_MR_MEM <= '1' when (mmuStat="001" and tlbMiss='0') else
+              '1' when (mmuStat="011" or mmuStat="100") else '0';
+
+  -- メモリ関連の例外 --
+  -- メモリ保護例外(MMU動作時だけ)
+  memVio  <= mapPage and (not index(3)) and                      -- TLB hit
+           (((not memWrt) and (not entry(10))) or                --   read
+            ((    memWrt) and (not entry( 9))) or                --   write
+            ((    insFet) and (not (entry(10) and entry(8)))));  --   fetch
+
+  -- 奇数アドレス例外(MMUが動作していない時も)
+  badAdr  <= mapPage and offs(0) and (not bytAdr);
+
+  --メモリ関連例外の原因レジスタ
   process(P_CLK, P_RESET)
   begin
     if(P_RESET='0') then
       fltRsn <= "00";
     elsif(P_CLK'event and P_CLK='1') then
-      if(badAdr='1' or memVio='1') then                 -- メモリ保護違反なら
+      if(badAdr='1' or memVio='1') then                 -- メモリ関連例外なら
         fltRsn <= fltRsn or (badAdr & memVio);          --   原因を記憶
         fltAdr <= page & offs;                          --   原因アドレスを記憶
       elsif(P_EN='1' and P_IOR='1' and
@@ -346,16 +292,61 @@ begin
     end if;
   end process;
 
+  -- メモリ関係の例外を割込みコントローラに知らせる
+  P_VIO_INT <= badAdr or memVio;
+
+  -- Page Fault 関連 --
+  -- page_fault例外
+  process(P_CLK, P_RESET)
+  begin
+    if (P_RESET='0') then
+      pageFlt <= '0';
+    elsif (P_CLK'event and P_CLK='1') then
+      if(mmuStat="100") then
+        pageFlt <= not P_DIN_MEM(15);  -- fetchしたentryのVビット
+      else
+        pageFlt <= '0';
+      end if;
+    end if;
+  end process;
+
+  -- page_fault発生ページ
+  process(P_CLK)
+  begin
+    if(P_CLK'event and P_CLK='1') then
+      if(pageFlt='1') then                              -- Page Fault なら
+        fltPage <= page;                                --   原因ページを記憶
+      end if;
+    end if;
+  end process;
+
+  -- page_fault を割り込みコントローラとCPUに接続
+  P_PAG_INT <= pageFlt;
+
+  --I/Oレジスタの書き換え
+  process(P_CLK,P_RESET)
+  begin
+    if (P_RESET='0') then
+      P_BANK_MEM <= '0';                                -- IPL ROM
+      enMmu <= '0';                                     -- MMU Enable
+    elsif (P_CLK'event and P_CLK='1') then
+      if(P_EN='1' and P_IOW='1') then                   -- IO[A0h - A7h]
+        if(P_ADDR(2 downto 1)="00") then                --    A0h or A1h
+          P_BANK_MEM <= P_DIN(0);
+        elsif(P_ADDR(2 downto 1)="01") then             --    A2h or A3h
+          enMmu <= P_DIN(0);
+        elsif(P_ADDR(2 downto 1)="11") then             --    A6h or A7h
+          pageTbl <= P_DIN(7 downto 0);
+        end if;
+      end if;
+	  end if;
+  end process;
+
   -- CPU への出力
   P_DOUT <=
       P_DIN_MEM when (P_IOR='0') else                     -- 通常はメモリ
-      "00000000" & TLB(conv_integer(P_ADDR(4 downto 2)))(23 downto 16)
-        when (P_ADDR(5)='0' and P_ADDR(1)='0') else       -- 80h,84h,...,9Ch
-      TLB(conv_integer(P_ADDR(4 downto 2)))(15 downto 0)
-        when (P_ADDR(5)='0') else                         -- 82h,86h,...,9Eh
       fltAdr when (P_ADDR(2)='0') else                    -- A2h 割込み原因Adr
       "00000000000000" & fltRsn when (P_ADDR(1)='0') else -- A4h 割込み原因
       "00000000" & fltPage;                               -- A6h TLBmissページ
-
 
 end Behavioral;
