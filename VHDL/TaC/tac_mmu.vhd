@@ -196,13 +196,13 @@ begin
              TLB(4)(15) and TLB(5)(15) and TLB(6)(15) and TLB(7)(15);
 
   -- TLBの空きエントリのインデクス
-  empIdx <= "000" when (TLB(0)(15)='0' else
-            "001" when (TLB(1)(15)='0' else
-            "010" when (TLB(2)(15)='0' else
-            "011" when (TLB(3)(15)='0' else
-            "100" when (TLB(4)(15)='0' else
-            "101" when (TLB(5)(15)='0' else
-            "110" when (TLB(6)(15)='0' else
+  empIdx <= "000" when (TLB(0)(15)='0') else
+            "001" when (TLB(1)(15)='0') else
+            "010" when (TLB(2)(15)='0') else
+            "011" when (TLB(3)(15)='0') else
+            "100" when (TLB(4)(15)='0') else
+            "101" when (TLB(5)(15)='0') else
+            "110" when (TLB(6)(15)='0') else
             "111";
 
   -- TLBの検索
