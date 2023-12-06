@@ -98,9 +98,9 @@ signal tlbFull : std_logic;                             -- TLB full
 signal empIdx  : std_logic_vector(2 downto 0);          -- index of empty entry
 signal pageFlt : std_logic;                             -- detect page fault
 signal rndAdr  : std_logic_vector(2 downto 0);          -- random address of TLB
+signal tlbMiss : std_logic;                             -- TLB miss
 
 -- 例外
-signal tlbMiss : std_logic;                             -- TLB miss
 signal memVio  : std_logic;                             -- Memory Violation
 signal badAdr  : std_logic;                             -- Bad Address
 
@@ -267,14 +267,15 @@ begin
               '1' when (mmuStat="011" or mmuStat="100") else '0';
 
   -- メモリ関連の例外 --
-  -- メモリ保護例外(MMU動作時だけ)
+  -- メモリ保護例外(mmuStat="001"でMMU動作時だけ)
   memVio  <= mapPage and (not index(3)) and                      -- TLB hit
            (((not memWrt) and (not entry(10))) or                --   read
             ((    memWrt) and (not entry( 9))) or                --   write
             ((    insFet) and (not (entry(10) and entry(8)))));  --   fetch
 
-  -- 奇数アドレス例外(MMUが動作していない時も)
-  badAdr  <= mapPage and offs(0) and (not bytAdr);
+  -- 奇数アドレス例外(mmuStat="001"でMMUが動作していない時も)
+  badAdr  <= (offs(0) and (not bytAdr)) when (mmuStat="001")
+             else '0';
 
   --メモリ関連例外の原因レジスタ
   process(P_CLK, P_RESET)
