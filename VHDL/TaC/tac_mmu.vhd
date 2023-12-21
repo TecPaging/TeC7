@@ -1,4 +1,4 @@
---
+M--
 -- TeC7 VHDL Source Code
 --    Tokuyama kousen Educational Computer Ver.7
 --
@@ -71,9 +71,10 @@ architecture Behavioral of TAC_MMU is
 signal mapPage : std_logic;                             -- activate mapping
 signal mmuStat : std_logic_vector(2 downto 0);          -- mmu status
 
--- CPU出力のラッチ
+-- CPUからの入力ラッチ
 signal page    : std_logic_vector(7 downto 0);          -- page no
 signal offs    : std_logic_vector(7 downto 0);          -- in page offset
+signal data    : std_logic_vector(15 downto 0);         -- cpu data
 signal memWrt  : std_logic;                             -- memory write
 signal insFet  : std_logic;                             -- instruction fetch
 signal bytAdr  : std_logic;                             -- byte addressing
@@ -97,7 +98,7 @@ signal tmpIdx  : std_logic_vector(3 downto 0);          -- Cndidate for index
 signal tlbFull : std_logic;                             -- TLB full
 signal empIdx  : std_logic_vector(2 downto 0);          -- index of empty entry
 signal pageFlt : std_logic;                             -- detect page fault
-signal rndAdr  : std_logic_vector(2 downto 0);          -- random address of TLB
+signal rndIdx  : std_logic_vector(2 downto 0);          -- random address of TLB
 signal tlbMiss : std_logic;                             -- TLB miss
 
 -- 例外
@@ -188,8 +189,8 @@ begin
       memWrt  <= P_RW;
       insFet  <= P_LI;
       bytAdr  <= P_BT;
-      P_DOUT_MEM <= P_DIN;
-      rndAdr  <= P_ADDR(3 downto 1);
+      data    <= P_DIN;
+      rndIdx  <= P_ADDR(3 downto 1);
     end if;
   end process;
 
@@ -240,20 +241,33 @@ begin
         TLB(conv_integer(index(2 downto 0)))(11) <=       -- D bit
           entry(11) or memWrt;
         TLB(conv_integer(index(2 downto 0)))(12) <='1';   -- R bit
+      elsif(mmuStat="011") then                         -- エントリのswap-out
+        TLB(conv_integer(rndIdx))(15) <= '0';             -- V bit
       elsif(mmuStat="100") then                         -- エントリのswap-in
         TLB(conv_integer(empIdx)) <= page & P_DIN_MEM;
+      elsif(P_EN='1' and P_IOW='1' and                  -- ページテーブル
+            P_ADDR(2 downto 1)="11") then               --   レジスタの書換え
+        TLB(0)(15) <= '0';                                -- 全V bitを0にする
+        TLB(1)(15) <= '0';
+        TLB(2)(15) <= '0';
+        TLB(3)(15) <= '0';
+        TLB(4)(15) <= '0';
+        TLB(5)(15) <= '0';
+        TLB(6)(15) <= '0';
+        TLB(7)(15) <= '0';
       end if;
     end if;
   end process;
 
   -- メモリへの出力
-  swapOutAdr <= (pageTbl&"0000000") + TLB(conv_integer(rndAdr))(23 downto 16);
+  swapOutAdr <= (pageTbl&"0000000") + TLB(conv_integer(rndIdx))(23 downto 16);
   swapInAdr  <= (pageTbl&"0000000") + page;
   targetFrm  <= entry(7 downto 0) when (mapPage='1') else page;
   targetAdr  <= targetFrm & offs;
   P_ADDR_MEM <= (swapOutAdr & '0') when mmuStat="011" else
                 (swapInAdr  & '0') when mmuStat="100" else targetAdr;
-
+  P_DOUT_MEM <= TLB(conv_integer(rndIdx))(15 downto 0) when mmuStat="011"
+                else data;
   P_BT_MEM <= bytAdr when mmuStat="001" else '0';
   P_RW_MEM <= memWrt when mmuStat="001" else
               '1'    when mmuStat="011" else '0';
