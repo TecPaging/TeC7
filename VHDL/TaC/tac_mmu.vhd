@@ -1,4 +1,4 @@
-M--
+--
 -- TeC7 VHDL Source Code
 --    Tokuyama kousen Educational Computer Ver.7
 --
@@ -293,7 +293,7 @@ begin
   badAdr  <= (offs(0) and (not bytAdr)) when (mmuStat="001")
              else '0';
 
-  --メモリ関連例外の原因レジスタ
+  -- メモリ関連例外の原因レジスタ
   process(P_CLK, P_RESET)
   begin
     if(P_RESET='0') then
@@ -301,10 +301,21 @@ begin
     elsif(P_CLK'event and P_CLK='1') then
       if(badAdr='1' or memVio='1') then                 -- メモリ関連例外なら
         fltRsn <= fltRsn or (badAdr & memVio);          --   原因を記憶
-        fltAdr <= page & offs;                          --   原因アドレスを記憶
       elsif(P_EN='1' and P_IOR='1' and
             P_ADDR(5 downto 1)="10010") then            -- IO[A4h - A5h]を
         fltRsn <= "00";                                 --   読み出したらクリア
+      end if;
+    end if;
+  end process;
+
+  -- 例外の原因アドレス
+  process(P_CLK, P_RESET)
+  begin
+    if(P_RESET='0') then
+      fltAdr <= "0000000000000000";
+    elsif(P_CLK'event and P_CLK='1') then
+      if(badAdr='1' or memVio='1' or pageFlt='1') then  -- メモリ関連例外なら
+        fltAdr <= page & offs;                          --   原因アドレスを記憶
       end if;
     end if;
   end process;
