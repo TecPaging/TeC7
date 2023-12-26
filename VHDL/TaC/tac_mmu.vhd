@@ -184,15 +184,17 @@ begin
   process(P_CLK)
   begin
     if (P_CLK'event and P_CLK='1') then
-      page    <= P_ADDR(15 downto 8);
-      offs    <= P_ADDR(7  downto 0);
-      memWrt  <= P_RW;
-      insFet  <= P_LI;
-      bytAdr  <= P_BT;
-      data    <= P_DIN;
-      rndIdx  <= P_ADDR(3 downto 1);
+      if (mmuStat="000" and P_MR='1') then
+        page    <= P_ADDR(15 downto 8);
+        offs    <= P_ADDR(7  downto 0);
+        data    <= P_DIN;
+        memWrt  <= P_RW;
+        insFet  <= P_LI;
+        bytAdr  <= P_BT;
+      end if;
     end if;
   end process;
+  rndIdx  <= offs(3 downto 1);
 
   -- TLBのエントリが全て使用中
   tlbFull <= TLB(0)(15) and TLB(1)(15) and TLB(2)(15) and TLB(3)(15) and 
@@ -375,6 +377,6 @@ begin
       P_DIN_MEM when (P_IOR='0') else                     -- 通常はメモリ
       fltAdr when (P_ADDR(2)='0') else                    -- A2h 割込み原因Adr
       "00000000000000" & fltRsn when (P_ADDR(1)='0') else -- A4h 割込み原因
-      "00000000" & fltPage;                               -- A6h TLBmissページ
+      "00000000" & fltPage;                               -- A6h 不在ページ
 
 end Behavioral;
