@@ -21,6 +21,7 @@
 --
 -- TaC/tac_mmu.vhd : TaC Memory Management Unit Source Code
 --
+-- 2023.12.27           : Page Table Walk を自動化したバージョン
 -- 2022.08.25           : P_MR_MEMが2クロック期間1になるバグ訂正
 --                      : TLBの検索結果を12ビットに限定するなど最適化
 -- 2022.03.21           : 動作テスト完了
@@ -184,14 +185,12 @@ begin
   process(P_CLK)
   begin
     if (P_CLK'event and P_CLK='1') then
-      if (mmuStat="000" and P_MR='1') then
-        page    <= P_ADDR(15 downto 8);
-        offs    <= P_ADDR(7  downto 0);
-        data    <= P_DIN;
-        memWrt  <= P_RW;
-        insFet  <= P_LI;
-        bytAdr  <= P_BT;
-      end if;
+      page    <= P_ADDR(15 downto 8);
+      offs    <= P_ADDR(7  downto 0);
+      data    <= P_DIN;
+      memWrt  <= P_RW;
+      insFet  <= P_LI;
+      bytAdr  <= P_BT;
     end if;
   end process;
   rndIdx  <= offs(3 downto 1);
