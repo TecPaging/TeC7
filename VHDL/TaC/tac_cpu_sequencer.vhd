@@ -114,9 +114,15 @@ constant S_CON3  : std_logic_vector(4 downto 0) := "11100";
 signal   I_STATE     : std_logic_vector(4 downto 0);
 signal   I_NEXT      : std_logic_vector(4 downto 0);
 
+-- WAITのとき出力してはならない信号
 signal   I_UPDATE_PC : std_logic_vector(2 downto 0);
 signal   I_UPDATE_SP : std_logic_vector(1 downto 0);
+signal   I_LOAD_IR   : std_logic;
+signal   I_LOAD_DR   : std_logic;
+signal   I_LOAD_FLAG : std_logic;
+signal   I_LOAD_TMP  : std_logic;
 signal   I_LOAD_GR   : std_logic;
+
 signal   I_ALU_START : std_logic;
 
 signal   I_IS_INDR   : std_logic;                    -- FP相対,レジスタ間接
@@ -243,24 +249,28 @@ begin
                             I_STATE=S_CALL or I_STATE=S_PUSH else
                  "00";                                               -- 保持
 
-  P_LOAD_IR <= '1' when I_STATE=S_FETCH or I_NEXT=S_CON2 else '0';
+  P_LOAD_IR <= '0' when P_WAIT='1' else I_LOAD_IR;
+  I_LOAD_IR <= '1' when I_STATE=S_FETCH or I_NEXT=S_CON2 else '0';
 
-  P_LOAD_DR <= '1' when I_NEXT=S_DEC1 or
+  P_LOAD_DR <= '0' when P_WAIT='1' else I_LOAD_DR;
+  I_LOAD_DR <= '1' when I_NEXT=S_DEC1 or
                         (I_STATE=S_DEC1 and P_OP2/="101") or       -- Imm4 以外
                         (I_STATE=S_DEC2 and P_OP1/="10101") or     -- CALL 以外
                         I_STATE=S_RETI2 or
                         I_STATE=S_CON2  else '0';
 
   -- ADD, SUB, ..., SHRL ではフラグが変化する
-  P_LOAD_FLAG <= '1' when (I_STATE=S_ALU1 or I_STATE=S_ALU2) and
+  P_LOAD_FLAG <= '0' when P_WAIT='1' else I_LOAD_FLAG;
+  I_LOAD_FLAG <= '1' when (I_STATE=S_ALU1 or I_STATE=S_ALU2) and
                           P_OP1/="00001" else '0';                 -- LD 以外
 
-  P_LOAD_TMP <= '1' when I_NEXT=S_INTR1 else '0';
+  P_LOAD_TMP <= '0' when P_WAIT='1' else I_LOAD_TMP;
+  I_LOAD_TMP <= '1' when I_NEXT=S_INTR1 else '0';
 
-  P_LOAD_GR <= '0' when P_WAIT='1' else I_LOAD_GR;                 -- Pフラグが
-  I_LOAD_GR <= '1' when (I_STATE=S_ALU1 and P_OP1 /= "00101") or   -- 変化すると
-                        (I_STATE=S_ALU2 and P_OP1 /= "00101") or   -- RETIで
-                        I_STATE=S_IN1 or I_STATE=S_IN2 or          -- 副作用あり
+  P_LOAD_GR <= '0' when P_WAIT='1' else I_LOAD_GR;
+  I_LOAD_GR <= '1' when (I_STATE=S_ALU1 and P_OP1 /= "00101") or   -- CMP 以外
+                        (I_STATE=S_ALU2 and P_OP1 /= "00101") or
+                        I_STATE=S_IN1 or I_STATE=S_IN2 or
                         I_STATE=S_POP or I_STATE=S_RETI3 or
                         (I_STATE=S_CON3 and P_OP2(1 downto 0)="10") else '0';
 
