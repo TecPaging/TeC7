@@ -2,7 +2,7 @@
 -- TeC7 VHDL Source Code
 --    Tokuyama kousen Educational Computer Ver.7
 --
--- Copyright (C) 2002-2022 by
+-- Copyright (C) 2002-2023 by
 --                      Dept. of Computer Science and Electronic Engineering,
 --                      Tokuyama College of Technology, JAPAN
 --
@@ -21,6 +21,7 @@
 --
 -- TaC/tac_cpu.vhd : TaC CPU VHDL Source Code
 --
+-- 2023.12.27           : TLB miss を Page Fault に置き換え
 -- 2022.08.24           : ソースコードの見直し（若干の改良）
 -- 2022.03.15           : TaC-CPU V3
 -- 2019.08.29           : IPL-ROMを8KiBにしたのでPCの初期値をE000hに変更
@@ -68,7 +69,7 @@ entity TAC_CPU is
          P_INTR     : in  std_logic;                        -- Intrrupt
          P_WAIT     : in  std_logic;                        -- wait reqest
          P_STOP     : in  std_logic;                        -- Panel RUN F/F
-         P_TLBMISS  : in std_logic                          -- TLB miss
+         P_PAGEFLT  : in std_logic                          -- Page Fault
         );
 end TAC_CPU;
 
@@ -123,7 +124,7 @@ component TAC_CPU_SEQUENCER is
   P_FLAG_S      : in std_logic;
   P_FLAG_I      : in std_logic;
   P_FLAG_P      : in std_logic;
-  P_TLBMISS     : in std_logic;                      -- TLB miss
+  P_PAGEFLT     : in std_logic;                      -- Page Fault
   P_MR          : out std_logic;                     -- Memory Request
   P_IR          : out std_logic;                     -- I/O Request
   P_RW          : out std_logic;                     -- Read/Write
@@ -259,7 +260,7 @@ begin
     P_FLAG_S    => I_FLAG_S,
     P_FLAG_I    => I_FLAG_I,
     P_FLAG_P    => I_FLAG_P,
-    P_TLBMISS   => P_TLBMISS,
+    P_PAGEFLT   => P_PAGEFLT,
     P_MR        => I_MR,
     P_IR        => I_IR,
     P_RW        => I_RW,

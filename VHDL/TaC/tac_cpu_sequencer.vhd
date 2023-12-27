@@ -21,6 +21,7 @@
 --
 -- TaC/tac_cpu_sequencer.vhd : TaC CPU Sequencer VHDL Source Code
 --
+-- 2023.12.27           : TLB Miss を Page Fault に置き換え
 -- 2023.01.05           : RETIで特権モードからユーザモードに戻ったとき，
 --                        SSP+=2, USP+=2(本来はSSP+=4)になるバグ訂正
 -- 2022.08.24           : 条件の簡単化・効率化(I_UPDATE_PC, P_SELECT_D, P_MR)
@@ -63,7 +64,7 @@ entity TAC_CPU_SEQUENCER is
   P_FLAG_S      : in std_logic;
   P_FLAG_I      : in std_logic;
   P_FLAG_P      : in std_logic;
-  P_TLBMISS     : in std_logic;                      -- TLB miss
+  P_PAGEFLT     : in std_logic;                      -- Page Fault
   P_MR          : out std_logic;                     -- Memory Request
   P_IR          : out std_logic;                     -- I/O Request
   P_RW          : out std_logic;                     -- Read/Write
@@ -156,7 +157,7 @@ begin
                   I_STATE=S_ZDIV or I_STATE=S_PRIVIO or
                   ((I_STATE=S_FETCH or I_STATE=S_DEC1 or
                     I_STATE=S_DEC2 or I_STATE=S_RETI1) and
-                   P_TLBMISS='1') else
+                   P_PAGEFLT='1') else
     S_WAIT2  when I_STATE=S_WAIT1 else
     S_INTR1  when I_STATE=S_FETCH and P_INTR='1' else
     S_INTR2  when I_STATE=S_INTR1 else

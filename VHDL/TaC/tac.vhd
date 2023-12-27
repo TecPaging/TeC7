@@ -2,7 +2,7 @@
 -- TeC7 VHDL Source Code
 --    Tokuyama kousen Educational Computer Ver.7
 --
--- Copyright (C) 2011-2021 by
+-- Copyright (C) 2011-2023 by
 --                      Dept. of Computer Science and Electronic Engineering,
 --                      Tokuyama College of Technology, JAPAN
 --
@@ -21,6 +21,7 @@
 --
 -- TaC/tac.vhd : TaC Top Level Source Code
 --
+-- 2023.12.27 : TLB miss を Page Fault に置き換え
 -- 2021.11.20 : 90度遅れの49.152MHzを廃止
 -- 2021.11.19 : TaC-CPU V3 対応
 -- 2019.12.19 : CPU停止時（コンソール動作時）はアドレス変換禁止
@@ -260,7 +261,7 @@ component TAC_CPU
          P_INTR     : in  std_logic;                       -- Intrrupt
          P_WAIT     : in  std_logic;                       -- Wait Request
          P_STOP     : in  std_logic;                       -- Bus Request
-         P_TLBMISS  : in  std_logic                        -- MMU TLB miss
+         P_PAGEFLT  : in  std_logic                        -- MMU Page Fault
        );
 end component;
 
@@ -452,7 +453,7 @@ component TAC_MMU is
          P_PR       : in  std_logic;                     -- Privilege mode
          P_WAIT     : out std_logic;                     -- Wait Request
          P_VIO_INT  : out std_logic;                     -- MemVio/BadAdr inter
-         P_PAG_INT  : out std_logic;                     -- TLB miss inter
+         P_PAG_INT  : out std_logic;                     -- Page Fault inter
 
          -- from cpu
          P_ADDR     : in  std_logic_vector(15 downto 0); -- Virtual address
@@ -554,7 +555,7 @@ begin
          P_INTR     => i_intr,
          P_WAIT     => i_wait,
          P_STOP     => i_stop,
-         P_TLBMISS  => i_int_bit(10)
+         P_PAGEFLT  => i_int_bit(10)
   );
 
   i_iow      <= i_ir and i_rw;

@@ -2,7 +2,7 @@
 -- TeC7 VHDL Source Code
 --    Tokuyama kousen Educational Computer Ver.7
 --
--- Copyright (C) 2002 - 2021 by
+-- Copyright (C) 2002 - 2023 by
 --                      Dept. of Computer Science and Electronic Engineering,
 --                      Tokuyama College of Technology, JAPAN
 --
@@ -21,6 +21,7 @@
 --
 -- TaC/tac_intc.vhd : Interrupt Controler
 --
+-- 2023.12.27 : TLB Miss を Page Fault に置き換え（コメント部分）
 -- 2021.10.13 : TaC-CPU V3 対応
 -- 2019.07.30 : 使用していない割込に関する警告を消す
 -- 2013.01.06 : TaC-CPU V2 対応
@@ -84,7 +85,7 @@ begin
   P_INTR  <= intMsk(6) or ((intMsk(15) or intReg(15)) and P_EI);
   P_DOUT(15 downto 5) <= "11111111111";
   P_DOUT(4 downto 1) <=
-            "1010" when (intReg( 0) = '1') else  -- Int10(TlbMiss)
+            "1010" when (intReg( 0) = '1') else  -- Int10(PageFlt)
             "1011" when (intReg( 1) = '1') else  -- Int11(MemVio)
             "1100" when (intReg( 2) = '1') else  -- Int12(ZeroDiv)
             "1101" when (intReg( 3) = '1') else  -- Int13(PriVio)
