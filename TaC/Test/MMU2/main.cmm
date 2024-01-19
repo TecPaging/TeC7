@@ -77,10 +77,15 @@ public void main() {
   for (int i=0; i<0x0100; i=i+1) {
      Mem[i] = 0x0000;
   }
-  Mem[0] = 0x0a00; Mem[1] = 0x1234;     // ld g0,#0x1234
-  Mem[2] = 0x1000; Mem[3] = 0x00f0;     // st g0,0x00f0
-  Mem[4] = 0xa0f0; Mem[5] = 0x0008;     // jmp .
-    // jmp 
+  Mem[0]  = 0x0a00; Mem[1]  = 0x1234;     // ld g0,#0x1234
+  Mem[2]  = 0x1000; Mem[3]  = 0x00f0;     // st g0,0x00f0
+  Mem[4]  = 0x1000; Mem[5]  = 0x01f0;     // st g0,0x01f0
+  Mem[6]  = 0x1000; Mem[7]  = 0x02f0;     // st g0,0x02f0
+  Mem[8]  = 0x1000; Mem[9]  = 0x03f0;     // st g0,0x03f0
+  Mem[10] = 0x1000; Mem[11] = 0x04f0;     // st g0,0x04f0
+  Mem[12] = 0x1000; Mem[13] = 0x05f0;     // st g0,0x05f0
+  Mem[14] = 0x1000; Mem[15] = 0x06f0;     // st g0,0x06f0
+  Mem[16] = 0x1000; Mem[17] = 0x07f0;     // st g0,0x07f0
 
   // ページテーブルの初期化
   Mem = _ItoA(PTBL<<8);
