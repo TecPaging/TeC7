@@ -86,23 +86,31 @@ public void main() {
   Mem[12] = 0x1000; Mem[13] = 0x05f0;     // st g0,0x05f0
   Mem[14] = 0x1000; Mem[15] = 0x06f0;     // st g0,0x06f0
   Mem[16] = 0x1000; Mem[17] = 0x07f0;     // st g0,0x07f0
+  Mem[18] = 0x1000; Mem[19] = 0xfff0;     // st g0,0xfff0
+  Mem[20] = 0x0d00;                       // ld g0,#0x0000
+  Mem[21] = 0x0800; Mem[22] = 0x00f0;     // ld g0,0x00f0
+  Mem[23] = 0x0a10; Mem[24] = 0x1234;     // ld g1,#0x1234
+  Mem[25] = 0x1010; Mem[26] = 0x09f0;     // st g1,0x09f0
+  Mem[27] = 0x0820; Mem[28] = 0x09f0;     // ld g2,0x09f0
+  Mem[29] = 0xa0f0; Mem[30] = 0x003a;     // jmp .
 
   // ページテーブルの初期化
   Mem = _ItoA(PTBL<<8);
   for (int i=0; i<0x0100; i=i+1) {
     Mem[i] = 0x0000;
   }
-  Mem[0] = 0x8780;     // V**R DRWX ffff ffff = 1000 0111 1000 0000
-  Mem[1] = 0x8781;     // V**R DRWX ffff ffff = 1000 0111 1000 0001
-  Mem[2] = 0x8782;     // V**R DRWX ffff ffff = 1000 0111 1000 0010
-  Mem[3] = 0x8783;     // V**R DRWX ffff ffff = 1000 0111 1000 0011
-  Mem[4] = 0x8784;     // V**R DRWX ffff ffff = 1000 0111 1000 0100
-  Mem[5] = 0x8785;     // V**R DRWX ffff ffff = 1000 0111 1000 0101
-  Mem[6] = 0x8786;     // V**R DRWX ffff ffff = 1000 0111 1000 0110
-  Mem[7] = 0x8787;     // V**R DRWX ffff ffff = 1000 0111 1000 0111
-  Mem[255] = 0x87ff;   // V**R DRWX ffff ffff = 1000 0111 1111 1111
-  out(0xa6, PTBL);     // ページテーブルレジスタへの出力
-  out(0xa2, 0x0001);   // MMU 有効化
+  Mem[0]   = 0x8780;    // V**R DRWX ffff ffff = 1000 0111 1000 0000
+  Mem[1]   = 0x8781;    // V**R DRWX ffff ffff = 1000 0111 1000 0001
+  Mem[2]   = 0x8782;    // V**R DRWX ffff ffff = 1000 0111 1000 0010
+  Mem[3]   = 0x8783;    // V**R DRWX ffff ffff = 1000 0111 1000 0011
+  Mem[4]   = 0x8784;    // V**R DRWX ffff ffff = 1000 0111 1000 0100
+  Mem[5]   = 0x8785;    // V**R DRWX ffff ffff = 1000 0111 1000 0101
+  Mem[6]   = 0x8786;    // V**R DRWX ffff ffff = 1000 0111 1000 0110
+  Mem[7]   = 0x8787;    // V**R DRWX ffff ffff = 1000 0111 1000 0111
+  Mem[255] = 0x8788;    // V**R DRWX ffff ffff = 1000 0111 1000 1000
+  Mem[9]   = 0x8789;    // V**R DRWX ffff ffff = 0000 0111 1000 1001
+  out(0xa6, PTBL);      // ページテーブルレジスタへの出力
+  out(0xa2, 0x0001);    // MMU 有効化
 
   // ユーザモードで実行開始
   setJmp(0x0000, 0x0080);
