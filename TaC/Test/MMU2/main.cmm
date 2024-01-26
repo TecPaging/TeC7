@@ -108,7 +108,7 @@ public void main() {
   Mem[6]   = 0x8786;    // V**R DRWX ffff ffff = 1000 0111 1000 0110
   Mem[7]   = 0x8787;    // V**R DRWX ffff ffff = 1000 0111 1000 0111
   Mem[255] = 0x8788;    // V**R DRWX ffff ffff = 1000 0111 1000 1000
-  Mem[9]   = 0x8789;    // V**R DRWX ffff ffff = 0000 0111 1000 1001
+  Mem[9]   = 0x8789;    // V**R DRWX ffff ffff = 1000 0111 1000 1001
   out(0xa6, PTBL);      // ページテーブルレジスタへの出力
   out(0xa2, 0x0001);    // MMU 有効化
 
