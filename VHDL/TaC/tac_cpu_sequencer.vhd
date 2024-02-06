@@ -2,7 +2,7 @@
 -- TeC7 VHDL Source Code
 --    Tokuyama kousen Educational Computer Ver.7
 --
--- Copyright (C) 2002-2023 by
+-- Copyright (C) 2002-2024 by
 --                      Dept. of Computer Science and Electronic Engineering,
 --                      Tokuyama College of Technology, JAPAN
 --
@@ -21,6 +21,7 @@
 --
 -- TaC/tac_cpu_sequencer.vhd : TaC CPU Sequencer VHDL Source Code
 --
+-- 2024.02.05           : P_LIを新設（P_LOAD_IRはMMUのXチェックに使用できない）
 -- 2023.12.27           : TLB Miss を Page Fault に置き換え
 -- 2023.01.05           : RETIで特権モードからユーザモードに戻ったとき，
 --                        SSP+=2, USP+=2(本来はSSP+=4)になるバグ訂正
@@ -66,6 +67,7 @@ entity TAC_CPU_SEQUENCER is
   P_FLAG_P      : in std_logic;
   P_PAGEFLT     : in std_logic;                      -- Page Fault
   P_MR          : out std_logic;                     -- Memory Request
+  P_LI          : out std_logic;                     -- Instruction Fetch
   P_IR          : out std_logic;                     -- I/O Request
   P_RW          : out std_logic;                     -- Read/Write
   P_HL          : out std_logic;                     -- Halt Instruction
@@ -249,7 +251,8 @@ begin
                             I_STATE=S_CALL or I_STATE=S_PUSH else
                  "00";                                               -- 保持
 
-  P_LOAD_IR <= '0' when P_WAIT='1' else I_LOAD_IR;
+  P_LOAD_IR <= '0' when P_WAIT='1' else I_LOAD_IR;                 -- IR更新
+  P_LI      <= I_LOAD_IR;                                          -- 現在fech中
   I_LOAD_IR <= '1' when I_STATE=S_FETCH or I_NEXT=S_CON2 else '0';
 
   P_LOAD_DR <= '0' when P_WAIT='1' else I_LOAD_DR;

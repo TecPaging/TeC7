@@ -225,11 +225,9 @@ begin
   begin
     if (P_CLK'event and P_CLK='1') then
       index <= tmpIdx;
+      entry <= TLB(conv_integer(tmpIdx(2 downto 0)))(11 downto 0);
     end if;
   end process;
-
-  -- TLBの検索結果を出力(mmuStat="001"の時に使用する)
-  entry <= TLB(conv_integer(index(2 downto 0)))(11 downto 0);
 
   -- TLB ミスの判定
   tlbMiss <= mapPage and index(3);
