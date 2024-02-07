@@ -2,7 +2,7 @@
 -- TeC7 VHDL Source Code
 --    Tokuyama kousen Educational Computer Ver.7
 --
--- Copyright (C) 2002-2023 by
+-- Copyright (C) 2002-2024 by
 --                      Dept. of Computer Science and Electronic Engineering,
 --                      Tokuyama College of Technology, JAPAN
 --
@@ -21,6 +21,8 @@
 --
 -- TaC/tac_cpu_sequencer.vhd : TaC CPU Sequencer VHDL Source Code
 --
+-- 2024.02.05           : P_LIを新設（P_LOAD_IRはMMUのXチェックに使用できない）
+-- 2023.12.27           : TLB Miss を Page Fault に置き換え
 -- 2023.01.05           : RETIで特権モードからユーザモードに戻ったとき，
 --                        SSP+=2, USP+=2(本来はSSP+=4)になるバグ訂正
 -- 2022.08.24           : 条件の簡単化・効率化(I_UPDATE_PC, P_SELECT_D, P_MR)
@@ -63,8 +65,9 @@ entity TAC_CPU_SEQUENCER is
   P_FLAG_S      : in std_logic;
   P_FLAG_I      : in std_logic;
   P_FLAG_P      : in std_logic;
-  P_TLBMISS     : in std_logic;                      -- TLB miss
+  P_PAGEFLT     : in std_logic;                      -- Page Fault
   P_MR          : out std_logic;                     -- Memory Request
+  P_LI          : out std_logic;                     -- Instruction Fetch
   P_IR          : out std_logic;                     -- I/O Request
   P_RW          : out std_logic;                     -- Read/Write
   P_HL          : out std_logic;                     -- Halt Instruction
@@ -113,9 +116,15 @@ constant S_CON3  : std_logic_vector(4 downto 0) := "11100";
 signal   I_STATE     : std_logic_vector(4 downto 0);
 signal   I_NEXT      : std_logic_vector(4 downto 0);
 
+-- WAITのとき出力してはならない信号
 signal   I_UPDATE_PC : std_logic_vector(2 downto 0);
 signal   I_UPDATE_SP : std_logic_vector(1 downto 0);
+signal   I_LOAD_IR   : std_logic;
+signal   I_LOAD_DR   : std_logic;
+signal   I_LOAD_FLAG : std_logic;
+signal   I_LOAD_TMP  : std_logic;
 signal   I_LOAD_GR   : std_logic;
+
 signal   I_ALU_START : std_logic;
 
 signal   I_IS_INDR   : std_logic;                    -- FP相対,レジスタ間接
@@ -156,7 +165,7 @@ begin
                   I_STATE=S_ZDIV or I_STATE=S_PRIVIO or
                   ((I_STATE=S_FETCH or I_STATE=S_DEC1 or
                     I_STATE=S_DEC2 or I_STATE=S_RETI1) and
-                   P_TLBMISS='1') else
+                   P_PAGEFLT='1') else
     S_WAIT2  when I_STATE=S_WAIT1 else
     S_INTR1  when I_STATE=S_FETCH and P_INTR='1' else
     S_INTR2  when I_STATE=S_INTR1 else
@@ -242,24 +251,29 @@ begin
                             I_STATE=S_CALL or I_STATE=S_PUSH else
                  "00";                                               -- 保持
 
-  P_LOAD_IR <= '1' when I_STATE=S_FETCH or I_NEXT=S_CON2 else '0';
+  P_LOAD_IR <= '0' when P_WAIT='1' else I_LOAD_IR;                 -- IR更新
+  P_LI      <= I_LOAD_IR;                                          -- 現在fech中
+  I_LOAD_IR <= '1' when I_STATE=S_FETCH or I_NEXT=S_CON2 else '0';
 
-  P_LOAD_DR <= '1' when I_NEXT=S_DEC1 or
+  P_LOAD_DR <= '0' when P_WAIT='1' else I_LOAD_DR;
+  I_LOAD_DR <= '1' when I_NEXT=S_DEC1 or
                         (I_STATE=S_DEC1 and P_OP2/="101") or       -- Imm4 以外
                         (I_STATE=S_DEC2 and P_OP1/="10101") or     -- CALL 以外
                         I_STATE=S_RETI2 or
                         I_STATE=S_CON2  else '0';
 
   -- ADD, SUB, ..., SHRL ではフラグが変化する
-  P_LOAD_FLAG <= '1' when (I_STATE=S_ALU1 or I_STATE=S_ALU2) and
+  P_LOAD_FLAG <= '0' when P_WAIT='1' else I_LOAD_FLAG;
+  I_LOAD_FLAG <= '1' when (I_STATE=S_ALU1 or I_STATE=S_ALU2) and
                           P_OP1/="00001" else '0';                 -- LD 以外
 
-  P_LOAD_TMP <= '1' when I_NEXT=S_INTR1 else '0';
+  P_LOAD_TMP <= '0' when P_WAIT='1' else I_LOAD_TMP;
+  I_LOAD_TMP <= '1' when I_NEXT=S_INTR1 else '0';
 
-  P_LOAD_GR <= '0' when P_WAIT='1' else I_LOAD_GR;                 -- Pフラグが
-  I_LOAD_GR <= '1' when (I_STATE=S_ALU1 and P_OP1 /= "00101") or   -- 変化すると
-                        (I_STATE=S_ALU2 and P_OP1 /= "00101") or   -- RETIで
-                        I_STATE=S_IN1 or I_STATE=S_IN2 or          -- 副作用あり
+  P_LOAD_GR <= '0' when P_WAIT='1' else I_LOAD_GR;
+  I_LOAD_GR <= '1' when (I_STATE=S_ALU1 and P_OP1 /= "00101") or   -- CMP 以外
+                        (I_STATE=S_ALU2 and P_OP1 /= "00101") or
+                        I_STATE=S_IN1 or I_STATE=S_IN2 or
                         I_STATE=S_POP or I_STATE=S_RETI3 or
                         (I_STATE=S_CON3 and P_OP2(1 downto 0)="10") else '0';
 
